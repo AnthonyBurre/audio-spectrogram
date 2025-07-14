@@ -1,0 +1,5 @@
+librosa
+numpy
+matplotlib
+pydub
+gradio==5.34.1
