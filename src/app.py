@@ -52,7 +52,7 @@ def main():
                     4096,
                     value=2048,
                     step=512,
-                    label="n_fft — FFT window size",
+                    label="n_fft - FFT window size",
                     info="Larger window = finer frequency resolution, coarser time resolution. "
                     "Frequency bin width = sample_rate ÷ n_fft (e.g. 22 Hz at sr=44100, n_fft=2048).",
                 )
@@ -61,16 +61,16 @@ def main():
                     1024,
                     value=512,
                     step=128,
-                    label="hop_length — frame step (samples)",
+                    label="hop_length - frame step (samples)",
                     info="Smaller step = finer time resolution. Time resolution = hop_length ÷ sample_rate "
-                    "(e.g. ~12 ms at sr=44100, hop=512). Overlap = 1 − hop_length / n_fft.",
+                    "(e.g. ~12 ms at sr=44100, hop=512). Overlap = 1 - hop_length / n_fft.",
                 )
                 n_mels = gr.Slider(
                     64,
                     256,
                     value=128,
                     step=32,
-                    label="n_mels — mel filter banks",
+                    label="n_mels - mel filter banks",
                     info="Number of triangular mel filters. More bins = finer perceptual frequency detail. "
                     "Only applies to the Mel spectrogram. Minimum 64 for audio reconstruction.",
                     visible=False,
@@ -80,7 +80,7 @@ def main():
                     64,
                     value=32,
                     step=8,
-                    label="Griffin-Lim iterations",
+                    label="Griffin-Lim iterations (only for audio reconstruction)",
                     info="Phase is discarded when computing a spectrogram. Griffin-Lim estimates it back "
                     "iteratively. More iterations = closer reconstruction, slower compute.",
                 )
