@@ -21,12 +21,12 @@ def generate_spectrogram(audio_file, spec_type, y_scale, n_fft, hop_length, n_me
         str: The file path of the generated spectrogram image.
     """
     try:
-        y, sr = librosa.load(audio_file)
+        y, sr = librosa.load(audio_file, sr=None)
 
         if spec_type == "STFT":
             stft = librosa.stft(y, n_fft=n_fft, hop_length=hop_length, window="hann")
             db_spectrogram = librosa.amplitude_to_db(np.abs(stft), ref=np.max)
-            title = f"STFT Spectrogram — {y_scale} Frequency"
+            title = "STFT Spectrogram"
             y_axis = y_scale.lower()
 
         elif spec_type == "Mel":
@@ -88,7 +88,7 @@ def reconstruct_audio(audio_file, spec_type, n_fft, hop_length, n_mels, n_iter):
         str: The file path of the reconstructed audio (.wav).
     """
     try:
-        y, sr = librosa.load(audio_file)
+        y, sr = librosa.load(audio_file, sr=None)
 
         if spec_type == "STFT":
             magnitude = np.abs(
@@ -102,8 +102,10 @@ def reconstruct_audio(audio_file, spec_type, n_fft, hop_length, n_mels, n_iter):
                 window="hann",
             )
         elif spec_type == "Mel":
-            # scipy nnls crashes when n_mels is too small relative to n_fft//2+1;
-            # empirically the ratio must stay below ~11:1 to stay stable.
+            # Numerical-stability bound on the pseudoinverse used by mel_to_audio:
+            # scipy's nnls fails when n_mels is too small relative to n_fft//2+1.
+            # This is an implementation constraint, not a mathematical requirement
+            # of mel inversion itself. Empirically the ratio must stay below ~11:1.
             min_mels = (n_fft // 2 + 1 + 10) // 11
             if n_mels < min_mels:
                 raise ValueError(
