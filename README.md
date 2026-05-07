@@ -1,6 +1,6 @@
-# Audio Spectrogram Generator
+# Audio File <-> Spectrogram Conversion
 
-A Gradio demo for visualizing audio as spectrograms and reconstructing audio from them via Griffin-Lim.
+A tool for visualizing audio as spectrograms and reconstructing audio from them via Griffin-Lim.
 
 ```bash
 pip install -r requirements.txt
@@ -12,23 +12,26 @@ python -m src.app
 
 ## Spectrogram types
 
-All types express amplitude on a **decibel (dB) scale**:
+All types display values on a **decibel (dB) scale**, normalized so the loudest bin in the clip is always 0 dB. dB values here are *relative to that maximum* - they are not absolute SPL.
+
+For STFT (amplitude form):
 
 ```
 dB = 20 · log₁₀(|S| / max|S|)
 ```
 
-where `|S|` is the magnitude of each time-frequency bin, normalized so the loudest bin is always 0 dB.
+For Mel (power form, since the mel filterbank is applied to `|S|²`):
+
+```
+dB = 10 · log₁₀(P / max P)
+```
+
+The two forms are numerically equivalent when `P = |S|²`, since `20·log₁₀|S| = 10·log₁₀|S|²`. Power-dB is the more fundamental definition; amplitude-dB exists as a shorthand for it.
+Strictly, `|S|²` is **power** (instantaneous, per frame), not energy — energy requires integration over time — but the two terms are often used loosely.
 
 ### STFT
 
-The Short-Time Fourier Transform divides the signal into short, overlapping frames and computes the FFT on each. Before the FFT, each frame is multiplied by a **Hann window** — a smooth bell-shaped curve that tapers to zero at both ends. Without windowing, the hard cut-off at each frame boundary introduces artificial discontinuities that leak energy across frequency bins (spectral leakage). The Hann window eliminates those edges, confining each sinusoidal component to its true frequency and a narrow set of neighboring bins.
-
-```
-S[k, t] = Σₙ x[n] · w[n − t·H] · e^(−j2πkn/N)
-```
-
-where `N` = `n_fft`, `H` = `hop_length`, and `w` is the Hann window. The magnitude `|S[k, t]|` is plotted.
+The Short-Time Fourier Transform divides the signal into short, overlapping frames and computes the FFT on each. Before the FFT, each frame is multiplied by a Hann window — a bell-shaped curve that tapers to zero at both ends. Without windowing, the hard cut-off at each frame boundary introduces artificial discontinuities that leak energy across frequency bins (spectral leakage). The Hann window smooths those edges so energy from a single sinusoid still spreads across a few bins, but no longer leaks far across the spectrum.
 
 The **Frequency Axis Scale** control determines how the y-axis is rendered:
 
@@ -37,17 +40,19 @@ The **Frequency Axis Scale** control determines how the y-axis is rendered:
 
 ### Mel
 
-Applies a bank of `n_mels` triangular filters to the **power spectrogram** — the squared magnitude of the STFT (`|S[k, t]|²`), which measures energy rather than amplitude. Squaring emphasizes louder components and matches how acoustic energy is physically defined.
+Applies a bank of `n_mels` triangular filters to the **power spectrogram** — the squared magnitude of the STFT (`|S[k, t]|²`). Working in power is the natural choice here: acoustic power is proportional to the square of pressure, and powers from incoherent sources add, so summing FFT-bin powers within each mel filter is physically meaningful in a way that summing amplitudes is not.
 
-The Hann window and the mel filterbank are both weighting operations, but they act in orthogonal dimensions. The Hann window operates in the **time domain**: it weights the raw audio samples within each frame before the FFT, shaping what a single snapshot of the signal looks like. The mel filters operate in the **frequency domain**: they weight the FFT bins that the STFT has already produced, running across the frequency axis for each time frame independently. Each triangular filter covers a contiguous range of FFT bins, ramping up from zero, peaking, then ramping back down, and adjacent filters overlap so no frequency region falls through the cracks. The dot product of a filter with a frame's power spectrum yields one mel bin — a single number representing the total energy in that perceptual frequency band at that moment in time. Applied across all `n_mels` filters and all time frames, this produces the final `(n_mels × time_frames)` matrix.
+Unlike the time domain Hann windows, the mel filters operate in the **frequency domain**: they weight the FFT bins that the STFT has already produced, running across the frequency axis for each time frame independently. Each triangular filter covers a contiguous range of FFT bins, ramping up from zero, peaking, then ramping back down, and adjacent filters overlap so no frequency region falls through the cracks. The dot product of a filter with a frame's power spectrum yields one mel bin — a single number representing the total power in that perceptual frequency band at that moment in time. Applied across all `n_mels` filters and all time frames, this produces the final `(n_mels × time_frames)` matrix.
 
-The filters are spaced on the **mel scale**:
+The filters are spaced on the **mel scale**, with dense spacing at low frequencies and coarse spacing at high frequencies. There is no single canonical mel formula — several variants are in common use. A frequently-cited form (HTK / O'Shaughnessy) is:
 
 ```
 mel(f) = 2595 · log₁₀(1 + f / 700)
 ```
 
-The mel scale approximates how the cochlea resolves frequencies: dense filter spacing at low frequencies and coarse spacing at high frequencies. The result is a compact, perceptually-motivated representation widely used as input features for speech and music models.
+`librosa` uses **Slaney's** variant by default (piecewise: linear below 1 kHz, logarithmic above), which differs from the formula above mostly in the low-frequency region. To switch to the HTK form, pass `htk=True` to `librosa.feature.melspectrogram`.
+
+The mel scale was derived from **subjective pitch-perception experiments** (Stevens, Volkmann & Newman, 1937) — it approximates *perceived pitch*, not cochlear filter widths. Auditory filter resolution on the basilar membrane is better described by the **Bark** or **ERB** scales, which are the right reference points for psychoacoustic and auditory-modeling work. Mel persists in speech and music ML largely by historical convention, but works well in practice as a compact, perceptually-motivated feature.
 
 Because mel filters aggregate many FFT bins into each output bin, some spectral detail is lost — this is why mel reconstruction sounds more degraded than STFT reconstruction.
 
@@ -86,7 +91,7 @@ For reconstruction, `n_mels` must be large enough relative to `n_fft` to keep th
 
 ### Griffin-Lim iterations *(reconstruction only)*
 
-Each STFT bin `S[k, t]` is a complex number `a + bi`. From it you can derive two quantities: **magnitude** `√(a² + b²)` (how loud that frequency is) and **phase** `arctan(b / a)` (where in its oscillation cycle that frequency component sits at that moment). The spectrogram only stores and displays magnitudes — phase is thrown away. The spectrogram only stores and displays magnitudes — phase is thrown away. To convert a spectrogram back to audio (**inversion**), you need both: the iSTFT (inverse STFT) requires a complex-valued matrix, not just magnitudes. With phase missing, a direct inversion is impossible.
+Each STFT bin `S[k, t]` is a complex number `a + bi`. From it you can derive two quantities: **magnitude** `√(a² + b²)` and **phase** `atan2(b, a)` (where in its oscillation cycle that component sits). The spectrogram only stores and displays magnitudes — phase is thrown away. To convert a spectrogram back to audio (**inversion**), you need both. The iSTFT (inverse STFT) requires a complex-valued matrix, both magnitudes and phases.
 
 **Griffin-Lim** estimates a plausible phase by iterating between the time and frequency domains:
 
