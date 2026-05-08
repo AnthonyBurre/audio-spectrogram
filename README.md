@@ -22,22 +22,19 @@ Generated spectrograms and reconstructed audio are written to `outputs/` and reu
 
 ## Spectrogram types
 
-All types display values on a **decibel (dB) scale**, normalized so the loudest bin in the clip is always 0 dB and everything else is negative. These are *relative* dB values - they don't correspond to an absolute physical loudness.
+All types display values on a **decibel (dB) scale**, which is fundamentally a power ratio: `dB = 10 · log₁₀(P / P_ref)`. Because `P ∝ A²`, for amplitude inputs the equivalent is `20 · log₁₀(A / A_ref)`
+
+dB has no absolute meaning without a reference. Common references include full-scale digital amplitude (dBFS) and sound pressure level (dB SPL). This project uses the loudest bin in the clip itself as the reference, so the maximum is always 0 dB and everything else is negative. Values reflect dynamics within a clip but are not comparable across clips.
 
 ### STFT
 
 The Short-Time Fourier Transform divides the signal into overlapping time frames, Hann windows each frame to mitigate spectral leakage, and computes each FFT. Without windowing, the hard cut-off at each frame boundary introduces artificial discontinuities that leak energy across frequency bins (spectral leakage). The Hann window smooths those edges so energy from a single sinusoid still spreads across a few bins, but not far across the spectrum.
 
-The result is a complex matrix `S[k, t]`, where `k` indexes frequency bins (`0` through `n_fft / 2`) and `t` indexes time frames. The spectrogram plots `|S[k, t]|` in dB, normalized to the loudest bin:
+The result is a complex matrix `S[k, t]`, where `k` indexes frequency bins (`0` through `n_fft / 2`) and `t` indexes time frames. The spectrogram discards phase and plots amplitudes `|S[k, t]|` in dB, normalized to the loudest bin:
 
 ```
 dB = 20 · log₁₀(|S| / max|S|)
 ```
-
-The **Frequency Axis Scale** control determines how the y-axis is rendered:
-
-- **Linear** — uniform Hz spacing from 0 to `sample_rate / 2` (Nyquist). Bin spacing is `sample_rate / n_fft` Hz (the usable frequency resolution is somewhat broader due to the Hann main-lobe width). Harmonic overtones appear as evenly-spaced horizontal bands.
-- **Log** — logarithmic spacing so each octave (doubling of frequency) occupies equal vertical height. Matches human pitch perception; melodic intervals are easier to identify.
 
 ### Mel
 
@@ -49,11 +46,13 @@ Plotted in dB, normalized to the loudest bin:
 dB = 10 · log₁₀(P / max P)
 ```
 
-where `P = |S|²`. This is numerically equivalent to the STFT's amplitude-dB form, since `20·log₁₀|S| = 10·log₁₀|S|²` — power-dB is the more fundamental definition; amplitude-dB is shorthand for it. Strictly, `|S|²` is **power** (instantaneous, per frame), not energy — energy requires integration over time — but the two terms are often used loosely.
+where `P = |S|²`. Strictly, `|S|²` is **power** (instantaneous, per frame), not energy — energy requires integration over time — but the two terms are often used loosely.
 
 Unlike the time-domain Hann windows, the mel filters operate in the **frequency domain**: they weight the FFT bins that the STFT has already produced, running across the frequency axis for each time frame independently. Each triangular filter covers a contiguous range of FFT bins, ramping up from zero, peaking, then ramping back down, and adjacent filters overlap so no frequency region falls through the cracks. The dot product of a filter with a frame's power spectrum yields one mel bin — a single number representing the total power in that perceptual frequency band at that moment in time. Applied across all `n_mels` filters and all time frames, this produces the final `(n_mels × time_frames)` matrix.
 
-The filters are spaced on the **mel scale**, with dense spacing at low frequencies and coarse spacing at high frequencies. There is no single canonical mel formula — several variants are in common use. A frequently-cited form (HTK / O'Shaughnessy) is:
+The filters are spaced on the **mel scale**, with dense spacing at low frequencies and coarse spacing at high frequencies. The "mel formulas" below describe a coordinate transformation from Hz to a unitless mel value — they do **not** define the filter shapes themselves (those are the fixed triangles described above), and they are not applied to the audio signal. The filterbank is built by placing `n_mels + 2` evenly-spaced points on the mel axis, then mapping each back to Hz via the inverse of the formula to fix the center and edges of every triangular filter on the FFT bin axis.
+
+There is no single canonical mel formula — several variants are in common use. A frequently-cited form (HTK / O'Shaughnessy) is:
 
 ```
 mel(f) = 2595 · log₁₀(1 + f / 700)
@@ -61,7 +60,7 @@ mel(f) = 2595 · log₁₀(1 + f / 700)
 
 `librosa` uses **Slaney's** variant by default (piecewise: linear below 1 kHz, logarithmic above), which differs from the formula above mostly in the low-frequency region. To switch to the HTK form, pass `htk=True` to `librosa.feature.melspectrogram`.
 
-The mel scale was derived from **subjective pitch-perception experiments** (Stevens, Volkmann & Newman, 1937) — it approximates *perceived pitch*, not cochlear filter widths. Auditory filter resolution on the basilar membrane is better described by the **Bark** or **ERB** scales, which are the right reference points for psychoacoustic and auditory-modeling work. Mel persists in speech and music ML by convention and works well in practice as a compact, perceptually-motivated feature.
+The unit's name is short for **melody**: the scale was derived from **subjective pitch-perception experiments** (Stevens, Volkmann & Newman, 1937) and approximates *perceived pitch*, not cochlear filter widths. Auditory filter resolution on the basilar membrane is better described by the **Bark** or **ERB** scales, which are the right reference points for psychoacoustic and auditory-modeling work. Mel persists in speech and music ML by convention and works well in practice as a compact, perceptually-motivated feature.
 
 Because mel filters aggregate many FFT bins into each output bin, some spectral detail is lost — this is why mel reconstruction sounds more degraded than STFT reconstruction.
 
@@ -70,6 +69,12 @@ Because mel filters aggregate many FFT bins into each output bin, some spectral 
 ---
 
 ## Parameters
+
+### `Frequency Axis Scale` — *(STFT type only)*
+Determines how the y-axis is rendered:
+
+- **Linear** — uniform Hz spacing from 0 to `sample_rate / 2` (Nyquist). Bin spacing is `sample_rate / n_fft` Hz (the usable frequency resolution is somewhat broader due to the Hann main-lobe width). Harmonic overtones appear as evenly-spaced horizontal bands.
+- **Log** — logarithmic spacing so each octave (doubling of frequency) occupies equal vertical height. Matches human pitch perception; melodic intervals are easier to identify.
 
 ### `n_fft` — FFT window size
 
