@@ -72,7 +72,7 @@ def main():
                     step=32,
                     label="n_mels - mel filter banks",
                     info="Number of triangular mel filters. More bins = finer perceptual frequency detail. "
-                    "For reconstruction, minimum ≈ (n_fft÷2 + 1) ÷ 11",
+                    "For reconstruction, minimum = ceil((n_fft÷2 + 1) ÷ 11)",
                     visible=False,
                 )
                 n_iter = gr.Slider(
@@ -111,6 +111,7 @@ def main():
     print("---------------------------------------------------------------------")
     print("If running in a Docker container, access app at: http://localhost:7860")
     print("---------------------------------------------------------------------")
+    demo.queue()
     demo.launch(server_name="0.0.0.0", server_port=7860)
 
 

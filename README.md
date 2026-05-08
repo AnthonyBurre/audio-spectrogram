@@ -16,13 +16,13 @@ docker run --rm -p 7860:7860 -v "$(pwd)/outputs:/app/outputs" audio-spectrogram
 # → http://localhost:7860
 ```
 
-Generated spectrograms and reconstructed audio are written to `outputs/` and reused as a cache: rerunning with the same input filename and parameters returns the cached file.
+Generated spectrograms and reconstructed audio are written to `outputs/` which doubles as a cache.
 
 ---
 
 ## Spectrogram types
 
-All types display values on a **decibel (dB) scale**, which is fundamentally a power ratio: `dB = 10 · log₁₀(P / P_ref)`. Because `P ∝ A²`, for amplitude inputs the equivalent is `20 · log₁₀(A / A_ref)`
+All types display values on a decibel (dB) scale, which is fundamentally a power ratio: `dB = 10 · log₁₀(P / P_ref)`. Because `P ∝ A²`, for amplitude inputs the equivalent is `20 · log₁₀(A / A_ref)`
 
 dB has no absolute meaning without a reference. Common references include full-scale digital amplitude (dBFS) and sound pressure level (dB SPL). This project uses the loudest bin in the clip itself as the reference, so the maximum is always 0 dB and everything else is negative. Values reflect dynamics within a clip but are not comparable across clips.
 
@@ -40,7 +40,7 @@ dB = 20 · log₁₀(|S| / max|S|)
 
 A mel spectrogram re-bins the STFT's many linearly-spaced FFT bins onto a coarser, perceptually-motivated frequency axis. The output is much smaller — `n_mels` is typically 40–128, versus `n_fft/2 + 1` ≈ 1025 for `n_fft=2048` — with dense spacing at low frequencies, where human pitch resolution is finest. That makes it a compact feature for ML, and a lossy target for reconstruction.
 
-The input is the **power spectrogram** — the squared magnitude of the STFT (`|S[k, t]|²`). Working in power is the natural choice here: acoustic power is proportional to the square of pressure, and powers from incoherent sources add, so summing FFT-bin powers within each mel filter is physically meaningful in a way that summing amplitudes is not.
+The input is the **power spectrogram**: acoustic power is proportional to the square of pressure, and powers from incoherent sources add, so summing FFT-bin powers within each mel filter is physically meaningful in a way that summing amplitudes is not.
 
 Plotted in dB, normalized to the loudest bin:
 
@@ -48,7 +48,7 @@ Plotted in dB, normalized to the loudest bin:
 dB = 10 · log₁₀(P / max P)
 ```
 
-where `P = |S|²`. Strictly, `|S|²` is **power** (instantaneous, per frame), not energy — energy requires integration over time — but the two terms are often used loosely.
+where `P = |S[k, t]|²`. Strictly, `|S|²` is **power** (instantaneous, per frame), not energy — energy requires integration over time — but the two terms are often used loosely.
 
 Each of the `n_mels` filters is a triangle in the frequency domain: it ramps up from zero, peaks at its center frequency, ramps back down, and overlaps its neighbors so no FFT bin is left unweighted. Unlike the time-domain Hann windows used by the STFT, these filters operate purely in the frequency domain — they weight FFT bins that already exist, they don't touch the audio signal.
 
@@ -93,7 +93,7 @@ Overlap between successive frames is `1 − hop_length / n_fft`. A common defaul
 
 The number of triangular filters in the mel filterbank. More filters preserve finer perceptual frequency resolution at the cost of a larger feature matrix. The default of 128 is standard for music; speech models often use 40–80.
 
-For reconstruction, `n_mels` must be large enough relative to `n_fft` to keep the mel→STFT inversion stable (minimum ≈ `(n_fft // 2 + 1) / 11`).
+For reconstruction, `n_mels` must be large enough relative to `n_fft` to keep the mel→STFT inversion stable (minimum = `ceil((n_fft // 2 + 1) / 11)`).
 
 ---
 

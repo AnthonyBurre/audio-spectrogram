@@ -1,6 +1,6 @@
 FROM python:3.12-slim
 
-# librosa/soundfile need libsndfile1; pydub needs ffmpeg.
+# soundfile needs libsndfile1; librosa needs ffmpeg (via audioread) for MP3 decode.
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ffmpeg libsndfile1 \
     && rm -rf /var/lib/apt/lists/*
