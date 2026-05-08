@@ -1,8 +1,38 @@
+import hashlib
+import os
+import re
+from pathlib import Path
+
 import librosa
 import matplotlib.pyplot as plt
 import numpy as np
 import soundfile
 import gradio as gr
+
+OUTPUT_DIR = Path(os.environ.get("OUTPUT_DIR", "outputs"))
+
+_COMPONENT_SEP = re.compile(r"[\s\-_.()\[\]]+")
+_NON_ALNUM = re.compile(r"[^A-Za-z0-9]+")
+
+
+def _short_stem(audio_file: str) -> str:
+    raw = Path(audio_file).stem
+    parts = [_NON_ALNUM.sub("", p) for p in _COMPONENT_SEP.split(raw)]
+    parts = [p for p in parts if p]
+    return "_".join(parts[:2]) or "audio"
+
+
+def _param_code(params: dict) -> str:
+    canonical = "|".join(f"{k}={params[k]}" for k in sorted(params))
+    return hashlib.md5(canonical.encode()).hexdigest()[:6]
+
+
+def _output_path(audio_file: str, spec_type: str, ext: str, params: dict) -> str:
+    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    return str(
+        OUTPUT_DIR
+        / f"{_short_stem(audio_file)}_{spec_type.lower()}_{_param_code(params)}.{ext}"
+    )
 
 
 def generate_spectrogram(audio_file, spec_type, y_scale, n_fft, hop_length, n_mels):
@@ -21,6 +51,18 @@ def generate_spectrogram(audio_file, spec_type, y_scale, n_fft, hop_length, n_me
         str: The file path of the generated spectrogram image.
     """
     try:
+        params = {"n_fft": n_fft, "hop_length": hop_length}
+        if spec_type == "STFT":
+            params["y_scale"] = y_scale
+        elif spec_type == "Mel":
+            params["n_mels"] = n_mels
+        else:
+            raise ValueError("Invalid spectrogram type selected.")
+
+        output_image_path = _output_path(audio_file, spec_type, "png", params)
+        if Path(output_image_path).exists():
+            return output_image_path
+
         y, sr = librosa.load(audio_file, sr=None)
 
         if spec_type == "STFT":
@@ -28,8 +70,7 @@ def generate_spectrogram(audio_file, spec_type, y_scale, n_fft, hop_length, n_me
             db_spectrogram = librosa.amplitude_to_db(np.abs(stft), ref=np.max)
             title = "STFT Spectrogram"
             y_axis = y_scale.lower()
-
-        elif spec_type == "Mel":
+        else:
             mel_spec = librosa.feature.melspectrogram(
                 y=y,
                 sr=sr,
@@ -41,9 +82,6 @@ def generate_spectrogram(audio_file, spec_type, y_scale, n_fft, hop_length, n_me
             db_spectrogram = librosa.power_to_db(mel_spec, ref=np.max)
             title = f"Mel Spectrogram — {n_mels} bins"
             y_axis = "mel"
-
-        else:
-            raise ValueError("Invalid spectrogram type selected.")
 
         fig, ax = plt.subplots(figsize=(12, 5))
         img = librosa.display.specshow(
@@ -59,7 +97,6 @@ def generate_spectrogram(audio_file, spec_type, y_scale, n_fft, hop_length, n_me
         ax.set_xlabel("Time (s)")
         ax.set_ylabel("Frequency (Hz)")
 
-        output_image_path = "spectrogram.png"
         plt.savefig(output_image_path, bbox_inches="tight")
         plt.close(fig)
 
@@ -88,6 +125,16 @@ def reconstruct_audio(audio_file, spec_type, n_fft, hop_length, n_mels, n_iter):
         str: The file path of the reconstructed audio (.wav).
     """
     try:
+        params = {"n_fft": n_fft, "hop_length": hop_length, "n_iter": n_iter}
+        if spec_type == "Mel":
+            params["n_mels"] = n_mels
+        elif spec_type != "STFT":
+            raise ValueError(f"Invalid spectrogram type: {spec_type}")
+
+        output_audio_path = _output_path(audio_file, spec_type, "wav", params)
+        if Path(output_audio_path).exists():
+            return output_audio_path
+
         y, sr = librosa.load(audio_file, sr=None)
 
         if spec_type == "STFT":
@@ -101,7 +148,7 @@ def reconstruct_audio(audio_file, spec_type, n_fft, hop_length, n_mels, n_iter):
                 n_fft=n_fft,
                 window="hann",
             )
-        elif spec_type == "Mel":
+        else:
             # Numerical-stability bound on the pseudoinverse used by mel_to_audio:
             # scipy's nnls fails when n_mels is too small relative to n_fft//2+1.
             # This is an implementation constraint, not a mathematical requirement
@@ -130,10 +177,7 @@ def reconstruct_audio(audio_file, spec_type, n_fft, hop_length, n_mels, n_iter):
                 n_iter=n_iter,
                 window="hann",
             )
-        else:
-            raise ValueError(f"Invalid spectrogram type: {spec_type}")
 
-        output_audio_path = "reconstructed.wav"
         soundfile.write(output_audio_path, y_recon, sr)
         return output_audio_path
 

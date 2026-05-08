@@ -1,0 +1,14 @@
+.venv/
+.git/
+.gitignore
+__pycache__/
+*.py[codz]
+.ruff_cache/
+outputs/
+*.png
+*.wav
+CLAUDE.md
+.claude/
+.vscode/
+.idea/
+LICENSE

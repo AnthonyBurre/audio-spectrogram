@@ -8,6 +8,16 @@ python -m src.app
 # → http://localhost:7860
 ```
 
+Or with Docker:
+
+```bash
+docker build -t audio-spectrogram .
+docker run --rm -p 7860:7860 -v "$(pwd)/outputs:/app/outputs" audio-spectrogram
+# → http://localhost:7860
+```
+
+Generated spectrograms and reconstructed audio are written to `outputs/` and reused as a cache: rerunning with the same input and parameters returns the cached file. Filenames combine the first two components of the input filename, the spectrogram type, and a short hash of the parameters (e.g. `bach_cello_stft_a3f8b2.png`, `bach_cello_mel_b7c9d1.wav`).
+
 ---
 
 ## Spectrogram types
@@ -16,7 +26,7 @@ All types display values on a **decibel (dB) scale**, normalized so the loudest 
 
 ### STFT
 
-The Short-Time Fourier Transform divides the signal into short, overlapping frames and computes the FFT on each. Before the FFT, each frame is multiplied by a Hann window — a bell-shaped curve that tapers to zero at both ends. Without windowing, the hard cut-off at each frame boundary introduces artificial discontinuities that leak energy across frequency bins (spectral leakage). The Hann window smooths those edges so energy from a single sinusoid still spreads across a few bins, but no longer leaks far across the spectrum.
+The Short-Time Fourier Transform divides the signal into overlapping time frames, Hann windows each frame to mitigate spectral leakage, and computes each FFT. Without windowing, the hard cut-off at each frame boundary introduces artificial discontinuities that leak energy across frequency bins (spectral leakage). The Hann window smooths those edges so energy from a single sinusoid still spreads across a few bins, but not far across the spectrum.
 
 The result is a complex matrix `S[k, t]`, where `k` indexes frequency bins (`0` through `n_fft / 2`) and `t` indexes time frames. The spectrogram plots `|S[k, t]|` in dB, normalized to the loudest bin:
 
