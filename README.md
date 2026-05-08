@@ -16,7 +16,7 @@ docker run --rm -p 7860:7860 -v "$(pwd)/outputs:/app/outputs" audio-spectrogram
 # → http://localhost:7860
 ```
 
-Generated spectrograms and reconstructed audio are written to `outputs/` and reused as a cache: rerunning with the same input and parameters returns the cached file. Filenames combine the first two components of the input filename, the spectrogram type, and a short hash of the parameters (e.g. `bach_cello_stft_a3f8b2.png`, `bach_cello_mel_b7c9d1.wav`).
+Generated spectrograms and reconstructed audio are written to `outputs/` and reused as a cache: rerunning with the same input and parameters returns the cached file.
 
 ---
 
