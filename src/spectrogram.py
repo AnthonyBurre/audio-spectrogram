@@ -10,6 +10,7 @@ import soundfile
 import gradio as gr
 
 OUTPUT_DIR = Path(os.environ.get("OUTPUT_DIR", "outputs"))
+OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
 
 _COMPONENT_SEP = re.compile(r"[\s\-_.()\[\]]+")
 _NON_ALNUM = re.compile(r"[^A-Za-z0-9]+")
@@ -27,15 +28,32 @@ def _param_code(params: dict) -> str:
     return hashlib.md5(canonical.encode()).hexdigest()[:6]
 
 
+def _content_code(audio_file: str) -> str:
+    # Hash the audio bytes so two different files with the same short_stem
+    # don't collide in the cache.
+    h = hashlib.blake2b(digest_size=4)
+    with open(audio_file, "rb") as f:
+        for chunk in iter(lambda: f.read(1 << 20), b""):
+            h.update(chunk)
+    return h.hexdigest()
+
+
 def _output_path(audio_file: str, spec_type: str, ext: str, params: dict) -> str:
-    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
     return str(
-        OUTPUT_DIR
-        / f"{_short_stem(audio_file)}_{spec_type.lower()}_{_param_code(params)}.{ext}"
+        OUTPUT_DIR / f"{_short_stem(audio_file)}_{spec_type.lower()}"
+        f"_{_content_code(audio_file)}_{_param_code(params)}.{ext}"
     )
 
 
-def generate_spectrogram(audio_file, spec_type, y_scale, n_fft, hop_length, n_mels):
+def generate_spectrogram(
+    audio_file,
+    spec_type,
+    y_scale,
+    n_fft,
+    hop_length,
+    n_mels,
+    progress=gr.Progress(),
+):
     """
     Generates a spectrogram with selectable types and parameters.
 
@@ -63,8 +81,10 @@ def generate_spectrogram(audio_file, spec_type, y_scale, n_fft, hop_length, n_me
         if Path(output_image_path).exists():
             return output_image_path
 
+        progress(0.05, desc="Loading audio")
         y, sr = librosa.load(audio_file, sr=None)
 
+        progress(0.35, desc="Computing spectrogram")
         if spec_type == "STFT":
             stft = librosa.stft(y, n_fft=n_fft, hop_length=hop_length, window="hann")
             db_spectrogram = librosa.amplitude_to_db(np.abs(stft), ref=np.max)
@@ -83,6 +103,7 @@ def generate_spectrogram(audio_file, spec_type, y_scale, n_fft, hop_length, n_me
             title = f"Mel Spectrogram — {n_mels} bins"
             y_axis = "mel"
 
+        progress(0.75, desc="Rendering image")
         fig, ax = plt.subplots(figsize=(12, 5))
         img = librosa.display.specshow(
             db_spectrogram,
@@ -97,7 +118,7 @@ def generate_spectrogram(audio_file, spec_type, y_scale, n_fft, hop_length, n_me
         ax.set_xlabel("Time (s)")
         ax.set_ylabel("Frequency (Hz)")
 
-        plt.savefig(output_image_path, bbox_inches="tight")
+        plt.savefig(output_image_path, bbox_inches="tight", dpi=150)
         plt.close(fig)
 
         return output_image_path
@@ -106,7 +127,15 @@ def generate_spectrogram(audio_file, spec_type, y_scale, n_fft, hop_length, n_me
         raise gr.Error(e)
 
 
-def reconstruct_audio(audio_file, spec_type, n_fft, hop_length, n_mels, n_iter):
+def reconstruct_audio(
+    audio_file,
+    spec_type,
+    n_fft,
+    hop_length,
+    n_mels,
+    n_iter,
+    progress=gr.Progress(),
+):
     """
     Round-trip an audio file through a spectrogram and back to audio.
 
@@ -135,12 +164,15 @@ def reconstruct_audio(audio_file, spec_type, n_fft, hop_length, n_mels, n_iter):
         if Path(output_audio_path).exists():
             return output_audio_path
 
+        progress(0.05, desc="Loading audio")
         y, sr = librosa.load(audio_file, sr=None)
 
         if spec_type == "STFT":
+            progress(0.2, desc="Computing STFT magnitude")
             magnitude = np.abs(
                 librosa.stft(y, n_fft=n_fft, hop_length=hop_length, window="hann")
             )
+            progress(0.3, desc=f"Running Griffin-Lim ({n_iter} iters)")
             y_recon = librosa.griffinlim(
                 magnitude,
                 n_iter=n_iter,
@@ -161,6 +193,7 @@ def reconstruct_audio(audio_file, spec_type, n_fft, hop_length, n_mels, n_iter):
                     f"crashes when n_mels is too small relative to the FFT size. "
                     f"Increase n_mels or reduce n_fft."
                 )
+            progress(0.2, desc="Computing mel spectrogram")
             mel_spec = librosa.feature.melspectrogram(
                 y=y,
                 sr=sr,
@@ -169,6 +202,7 @@ def reconstruct_audio(audio_file, spec_type, n_fft, hop_length, n_mels, n_iter):
                 n_mels=n_mels,
                 power=2.0,
             )
+            progress(0.3, desc=f"Inverting mel + Griffin-Lim ({n_iter} iters)")
             y_recon = librosa.feature.inverse.mel_to_audio(
                 mel_spec,
                 sr=sr,
@@ -178,6 +212,7 @@ def reconstruct_audio(audio_file, spec_type, n_fft, hop_length, n_mels, n_iter):
                 window="hann",
             )
 
+        progress(0.95, desc="Writing WAV")
         soundfile.write(output_audio_path, y_recon, sr)
         return output_audio_path
 
