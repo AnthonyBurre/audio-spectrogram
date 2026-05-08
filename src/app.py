@@ -8,11 +8,11 @@ Y_SCALES = ["Linear", "Log"]
 INTRO_MD = """
 # Audio Spectrogram Tool
 
-This tool transforms an audio signal into a time x frequency map of amplitudes in decibels (dB), showing how a sound's frequency content evolves moment to moment.
+This tool transforms an audio signal into a time x frequency map of decibel values, showing how frequency content evolves moment to moment.
 
 Upload an audio file to visualize it as a spectrogram, then **reconstruct audio** from the magnitude values alone. This round-trip is lossy: phase information is thrown away when computing the spectrogram and must be estimated back using the iterative **Griffin-Lim algorithm**. 
 Increase iterations to recover phase more faithfully, at the cost of compute time. 
-Mel spectrograms carry an additional loss because the mel filterbank compresses many frequency bins into fewer perceptual ones before inversion.
+Mel spectrograms carry an additional loss because the mel filterbank compresses many frequency bins into fewer perceptual ones.
 """
 
 
@@ -72,7 +72,7 @@ def main():
                     step=32,
                     label="n_mels - mel filter banks",
                     info="Number of triangular mel filters. More bins = finer perceptual frequency detail. "
-                    "Only applies to the Mel spectrogram. Minimum 64 for audio reconstruction.",
+                    "For reconstruction, minimum ≈ (n_fft÷2 + 1) ÷ 11",
                     visible=False,
                 )
                 n_iter = gr.Slider(
