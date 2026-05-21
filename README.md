@@ -20,6 +20,27 @@ Generated spectrograms and reconstructed audio are written to `outputs/` which d
 
 ---
 
+## Example
+
+A 60-second clip shows the round-trip on music, with sustained harmonic content and percussion.
+
+**Input** — [`assets/717x-chillwave.mp3`](assets/717x-chillwave.mp3)
+
+**STFT spectrogram** (`n_fft=2048`, `hop_length=512`, log frequency axis):
+
+![STFT spectrogram of the chillwave clip](assets/717x-chillwave-spectrogram-stft.png)
+
+Reconstructions from magnitude alone, via Griffin-Lim:
+
+| Source | File | Notes |
+|---|---|---|
+| STFT (`n_fft=2048`, `hop=512`), 32 iterations | [`assets/717x-chillwave-reconstructed-stft.mp3`](assets/717x-chillwave-reconstructed-stft.mp3) | Near-transparent, phase recovered well. |
+| Mel (`n_fft=512`, `n_mels=32`), 64 iterations | [`assets/717x-chillwave-reconstructed-mel.mp3`](assets/717x-chillwave-reconstructed-mel.mp3) | Clearly degraded, collapsing the spectrum into 32 mel bands gives a muffled result while the music stays recognizable. |
+
+> GitHub doesn't play audio inline in the README; the links above download the clips.
+
+---
+
 ## Spectrogram types
 
 All types display values on a decibel (dB) scale, which is fundamentally a power ratio: `dB = 10 · log₁₀(P / P_ref)`. Because `P ∝ A²`, for amplitude inputs the equivalent is `20 · log₁₀(A / A_ref)`
@@ -70,24 +91,35 @@ Determines how the y-axis is rendered:
 
 ### `n_fft` — FFT window size
 
-Controls the fundamental **time–frequency resolution tradeoff**:
+The number of samples analyzed by a single FFT. Controls the fundamental **time–frequency resolution tradeoff**:
+
+- **Frequency resolution:** `Δf = sample_rate / n_fft` Hz per bin
+- **Window duration:** `n_fft / sample_rate` seconds — the time interval each frame summarizes
 
 | Larger `n_fft` | Smaller `n_fft` |
 |---|---|
-| Finer frequency bins (`Δf = sr / n_fft`) | Coarser frequency bins |
+| Finer frequency bins | Coarser frequency bins |
 | Wider time window, blurs fast transients | Narrower window, captures sharp attacks |
 
-Typical values: 512 (drums, transients) → 2048 (general) → 4096 (low-frequency detail).
+Typical values: 512 (drums, transients) → 2048 (general) → 4096 (low-frequency detail). Powers of two are conventional because the FFT is fastest there.
 
 ### `hop_length` — frame step
 
-The number of samples the window advances between frames. Sets **time resolution**:
+The number of samples the window advances between frames. Sets **time resolution** along the spectrogram's x-axis:
 
 ```
 Δt = hop_length / sample_rate   (e.g. 512 / 44100 ≈ 11.6 ms)
 ```
 
-Overlap between successive frames is `1 − hop_length / n_fft`. A common default is `n_fft / 4`.
+Its relationship to `n_fft` determines how consecutive frames sit against each other:
+
+| Regime | Condition | Effect |
+|---|---|---|
+| **Overlap** | `hop_length < n_fft` | Frames share samples — overlap fraction is `1 − hop_length / n_fft`. Smoother temporal evolution; required for clean inversion. |
+| **Snug fit** | `hop_length = n_fft` | Frames tile edge-to-edge. Tapered windows (Hann) attenuate sample contributions near frame boundaries, causing scalloping on resynthesis. |
+| **Gaps** | `hop_length > n_fft` | Samples between frames are unanalyzed and lost. Transients falling in the gaps disappear; reconstruction is not possible. |
+
+The default `hop_length = n_fft / 4` (75% overlap) satisfies the COLA condition for the Hann window, so iSTFT and Griffin-Lim can reconstruct cleanly. Use ≤ 50% overlap only if you don't need resynthesis.
 
 ### `n_mels` — mel filter banks *(Mel type only)*
 
