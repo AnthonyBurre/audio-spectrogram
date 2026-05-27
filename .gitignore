@@ -1,7 +1,6 @@
 *.png
 *.wav
-# but keep the curated example media
-!assets/*.png
+assets/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
