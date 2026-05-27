@@ -27,7 +27,7 @@ Demos of round-trip on 60 second music clip [`assets/717x-chillwave.mp3`]
 **STFT reconstruction** 
 
 <video src="assets/717x-chillwave-reconstructed-stft.mp4" controls></video>
-`n_fft=2048`, `hop_length=512`, 32 Griffin-Lim iterations: loses some of quality but still get the ideas through.
+`n_fft=2048`, `hop_length=512`, 32 Griffin-Lim iterations: loses some quality but still gets all the ideas through.
 
 **Mel reconstruction** 
 
@@ -40,7 +40,10 @@ Demos of round-trip on 60 second music clip [`assets/717x-chillwave.mp3`]
 
 An audio file is a 1D sequence of amplitude samples — one number per sample at a fixed sample rate (e.g., 44,100/sec) — representing instantaneous signal level over time. Both spectrogram types here display audio values on a decibel (dB) scale, which is fundamentally a power ratio: `dB = 10 · log₁₀(P / P_ref)`. Because `P ∝ A²`, for amplitude inputs the equivalent is `20 · log₁₀(A / A_ref)`
 
-dB has no absolute meaning without a reference. Common references include full-scale digital amplitude (dBFS) and sound pressure level (dB SPL). This project uses the loudest bin in the clip itself as the reference, so the maximum is always 0 dB and everything else is negative. Values reflect dynamics within a clip but are not comparable across clips.
+dB has no absolute meaning without a reference. Common references include full-scale digital amplitude (dBFS) and sound pressure level (dB SPL). dB SPL isn't recoverable from an audio file — it requires calibrated mic, preamp, and playback metadata that `.wav` and `.mp3` don't carry — so this project offers two choices via the **dB reference** control:
+
+- **Per-clip** (default): the loudest bin in the clip is the reference. Max is always 0 dB; everything else is negative. Each clip uses the full color range, but values are not comparable across clips.
+- **Full scale (dBFS)**: 0 dB = digital full-scale amplitude (1.0). Values are comparable across clips, but quiet recordings render dim because their peak sits well below 0.
 
 ### STFT
 
@@ -78,13 +81,13 @@ Because mel filters aggregate many FFT bins into each output bin, some spectral 
 
 ## Parameters
 
-### `Frequency Axis Scale` — *(STFT type only)*
+### `Frequency Axis Scale` — *(STFT only, display only)*
 Determines how the y-axis is rendered:
 
 - **Linear** — uniform Hz spacing from `0` to `sample_rate / 2` (Nyquist). Harmonic overtones appear as evenly-spaced horizontal bands.
 - **Log** — logarithmic spacing so each octave (doubling of frequency) occupies equal vertical height. Matches human pitch perception; melodic intervals are easier to identify.
 
-### `n_fft` — FFT window size
+### `n_fft` — FFT window size *(display + reconstruction)*
 
 The number of samples analyzed by a single FFT. Controls the fundamental **time–frequency resolution tradeoff**:
 
@@ -98,7 +101,7 @@ The number of samples analyzed by a single FFT. Controls the fundamental **time�
 
 Typical values: 512 (drums, transients) → 2048 (general) → 4096 (low-frequency detail). Powers of two are conventional because the FFT is fastest there.
 
-### `hop_length` — frame step
+### `hop_length` — frame step *(display + reconstruction)*
 
 The number of samples the window advances between frames. Sets **time resolution** along the spectrogram's x-axis:
 
@@ -116,11 +119,19 @@ Its relationship to `n_fft` determines how consecutive frames sit against each o
 
 The default `hop_length = n_fft / 4` (75% overlap) satisfies the COLA condition for the Hann window, so iSTFT and Griffin-Lim can reconstruct cleanly. Use ≤ 50% overlap only if you don't need resynthesis.
 
-### `n_mels` — mel filter banks *(Mel type only)*
+### `n_mels` — mel filter banks *(Mel only, display + reconstruction)*
 
 The number of triangular filters in the mel filterbank. More filters preserve finer perceptual frequency resolution at the cost of a larger feature matrix. The default of 128 is standard for music; speech models often use 40–80.
 
 For reconstruction, `n_mels` must be large enough relative to `n_fft` to keep the mel→STFT inversion stable (minimum = `ceil((n_fft // 2 + 1) / 11)`).
+
+### `dB reference` *(display only)*
+
+Sets which value maps to 0 dB on the color scale. See the "Spectrogram types" section for what each mode means in practice. This affects only the rendered image — reconstruction always operates on the raw linear magnitudes, so the choice has no effect on Griffin-Lim output.
+
+### `Griffin-Lim iterations` *(reconstruction only)*
+
+See the "Reconstruction" section below — this parameter has no effect on the spectrogram image, only on the audio resynthesized from it.
 
 ---
 

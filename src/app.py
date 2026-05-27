@@ -4,6 +4,7 @@ from .spectrogram import generate_spectrogram, reconstruct_audio
 
 SPEC_TYPES = ["STFT", "Mel"]
 Y_SCALES = ["Linear", "Log"]
+DB_REFS = ["Per-clip", "Full scale (dBFS)"]
 
 INTRO_MD = """
 # Audio Spectrogram Tool
@@ -75,6 +76,13 @@ def main():
                     "For reconstruction, minimum = ceil((n_fft÷2 + 1) ÷ 11)",
                     visible=False,
                 )
+                db_ref = gr.Radio(
+                    DB_REFS,
+                    label="dB reference (display only)",
+                    value="Per-clip",
+                    info="Per-clip: loudest bin = 0 dB, full color range per clip but not comparable across clips. "
+                    "Full scale (dBFS): 0 dB = digital full-scale amplitude, comparable across clips but quiet clips look dim.",
+                )
                 n_iter = gr.Slider(
                     8,
                     64,
@@ -99,7 +107,7 @@ def main():
 
         spec_btn.click(
             fn=generate_spectrogram,
-            inputs=[audio_input, spec_type, y_scale, n_fft, hop_length, n_mels],
+            inputs=[audio_input, spec_type, y_scale, n_fft, hop_length, n_mels, db_ref],
             outputs=spec_output,
         )
         recon_btn.click(

@@ -45,6 +45,12 @@ def _output_path(audio_file: str, spec_type: str, ext: str, params: dict) -> str
     )
 
 
+_DB_REF_MODES = {
+    "Per-clip": np.max,
+    "Full scale (dBFS)": 1.0,
+}
+
+
 def generate_spectrogram(
     audio_file,
     spec_type,
@@ -52,6 +58,7 @@ def generate_spectrogram(
     n_fft,
     hop_length,
     n_mels,
+    db_ref,
     progress=gr.Progress(),
 ):
     """
@@ -64,12 +71,17 @@ def generate_spectrogram(
         n_fft (int): FFT window size.
         hop_length (int): Number of samples between successive frames.
         n_mels (int): Number of mel filter banks (Mel type only).
+        db_ref (str): dB reference for display ('Per-clip' or 'Full scale (dBFS)').
 
     Returns:
         str: The file path of the generated spectrogram image.
     """
     try:
-        params = {"n_fft": n_fft, "hop_length": hop_length}
+        if db_ref not in _DB_REF_MODES:
+            raise ValueError(f"Invalid dB reference: {db_ref}")
+        ref = _DB_REF_MODES[db_ref]
+
+        params = {"n_fft": n_fft, "hop_length": hop_length, "db_ref": db_ref}
         if spec_type == "STFT":
             params["y_scale"] = y_scale
         elif spec_type == "Mel":
@@ -87,7 +99,7 @@ def generate_spectrogram(
         progress(0.35, desc="Computing spectrogram")
         if spec_type == "STFT":
             stft = librosa.stft(y, n_fft=n_fft, hop_length=hop_length, window="hann")
-            db_spectrogram = librosa.amplitude_to_db(np.abs(stft), ref=np.max)
+            db_spectrogram = librosa.amplitude_to_db(np.abs(stft), ref=ref)
             title = "STFT Spectrogram"
             y_axis = y_scale.lower()
         else:
@@ -99,7 +111,7 @@ def generate_spectrogram(
                 n_mels=n_mels,
                 power=2.0,
             )
-            db_spectrogram = librosa.power_to_db(mel_spec, ref=np.max)
+            db_spectrogram = librosa.power_to_db(mel_spec, ref=ref)
             title = f"Mel Spectrogram — {n_mels} bins"
             y_axis = "mel"
 
