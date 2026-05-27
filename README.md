@@ -26,11 +26,13 @@ Demos of round-trip on 60 second music clip  ([717x-chillwave.mp3](https://githu
 
 **STFT reconstruction** 
 
+https://github.com/user-attachments/assets/9dced0ed-0e54-4cb2-b447-439e72758ea0
 
 `n_fft=2048`, `hop_length=512`, 32 Griffin-Lim iterations: loses some quality but still gets all the ideas through.
 
 **Mel reconstruction** 
 
+https://github.com/user-attachments/assets/e0628275-527e-4183-83c6-6f479ad7146a
 
 `n_fft=512`, `hop_length=128`, `n_mels=32`, 64 Griffin-Lim iterations: very muffled and degraded but recognizable.
 
