@@ -2,6 +2,10 @@
 
 
 
+
+
+
+
 # Audio File <-> Spectrogram Conversion
 
 A spectrogram is a time × frequency heatmap showing how the content of a signal evolves moment to moment. This project is a tool for visualizing audio files as spectrograms, and reconstructing them via Griffin-Lim.
@@ -35,7 +39,7 @@ Demos of round-trip on 60 second music clip [`assets/717x-chillwave.mp3`]
 
 **Mel reconstruction** 
 
-<video src="assets/717x-chillwave-reconstructed-mel.mp4" controls></video>
+https://github.com/user-attachments/assets/55820501-e2c3-4edd-8aa4-891b48330969
 `n_fft=512`, `hop_length=128`, `n_mels=32`, 64 Griffin-Lim iterations: very muffled and degraded but recognizable.
 
 ---
