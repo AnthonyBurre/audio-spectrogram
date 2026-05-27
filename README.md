@@ -1,3 +1,7 @@
+
+
+https://github.com/user-attachments/assets/2431c932-4f02-4c88-9934-d490198af693
+
 # Audio File <-> Spectrogram Conversion
 
 A spectrogram is a time × frequency heatmap showing how the content of a signal evolves moment to moment. This project is a tool for visualizing audio files as spectrograms, and reconstructing them via Griffin-Lim.
