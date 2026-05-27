@@ -53,7 +53,7 @@ def main():
                     4096,
                     value=2048,
                     step=512,
-                    label="n_fft - FFT window size",
+                    label="FFT Window Size (n_fft)",
                     info="Larger window = finer frequency resolution, coarser time resolution. "
                     "Frequency bin width = sample_rate ÷ n_fft (e.g. 22 Hz at sr=44100, n_fft=2048).",
                 )
@@ -62,7 +62,7 @@ def main():
                     1024,
                     value=512,
                     step=128,
-                    label="hop_length - frame step (samples)",
+                    label="Hop Length (hop_length)",
                     info="Smaller step = finer time resolution. Time resolution = hop_length ÷ sample_rate "
                     "(e.g. ~12 ms at sr=44100, hop=512). Overlap = 1 - hop_length / n_fft.",
                 )
@@ -71,14 +71,14 @@ def main():
                     256,
                     value=128,
                     step=32,
-                    label="n_mels - mel filter banks",
+                    label="Mel Bins (n_mels)",
                     info="Number of triangular mel filters. More bins = finer perceptual frequency detail. "
                     "For reconstruction, minimum = ceil((n_fft÷2 + 1) ÷ 11)",
                     visible=False,
                 )
                 db_ref = gr.Radio(
                     DB_REFS,
-                    label="dB reference (display only)",
+                    label="dB Reference",
                     value="Per-clip",
                     info="Per-clip: loudest bin = 0 dB, full color range per clip but not comparable across clips. "
                     "Full scale (dBFS): 0 dB = digital full-scale amplitude, comparable across clips but quiet clips look dim.",
@@ -88,7 +88,7 @@ def main():
                     64,
                     value=32,
                     step=8,
-                    label="Griffin-Lim iterations (only for audio reconstruction)",
+                    label="Griffin-Lim Iterations",
                     info="Phase is discarded when computing a spectrogram. Griffin-Lim estimates it back "
                     "iteratively. More iterations = closer reconstruction, slower compute.",
                 )
