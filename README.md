@@ -1,11 +1,11 @@
 # Audio File <-> Spectrogram Conversion
 
-A spectrogram is a time × frequency map showing how a signal's content evolves moment to moment. This project is a tool for visualizing audio files as spectrograms, and reconstructing them via Griffin-Lim.
+A spectrogram is a time × frequency heatmap showing how the content of a signal evolves moment to moment. This project is a tool for visualizing audio files as spectrograms, and reconstructing them via Griffin-Lim.
 
 ```bash
 pip install -r requirements.txt
 python -m src.app
-# → http://localhost:7860
+# → http://localhost:7860 or http://0.0.0.0:7860
 ```
 
 Or with Docker:
@@ -20,9 +20,25 @@ Generated spectrograms and reconstructed audio are written to `outputs/` which d
 
 ---
 
+## Example
+
+Demos of round-trip on 60 second music clip [`assets/717x-chillwave.mp3`]
+
+**STFT reconstruction** 
+
+<video src="assets/717x-chillwave-reconstructed-stft.mp4" controls></video>
+`n_fft=2048`, `hop_length=512`, 32 Griffin-Lim iterations: loses some of quality but still get the ideas through.
+
+**Mel reconstruction** 
+
+<video src="assets/717x-chillwave-reconstructed-mel.mp4" controls></video>
+`n_fft=512`, `hop_length=128`, `n_mels=32`, 64 Griffin-Lim iterations: very muffled and degraded but recognizable.
+
+---
+
 ## Spectrogram types
 
-All types display values on a decibel (dB) scale, which is fundamentally a power ratio: `dB = 10 · log₁₀(P / P_ref)`. Because `P ∝ A²`, for amplitude inputs the equivalent is `20 · log₁₀(A / A_ref)`
+An audio file is a 1D sequence of amplitude samples — one number per sample at a fixed sample rate (e.g., 44,100/sec) — representing instantaneous signal level over time. Both spectrogram types here display audio values on a decibel (dB) scale, which is fundamentally a power ratio: `dB = 10 · log₁₀(P / P_ref)`. Because `P ∝ A²`, for amplitude inputs the equivalent is `20 · log₁₀(A / A_ref)`
 
 dB has no absolute meaning without a reference. Common references include full-scale digital amplitude (dBFS) and sound pressure level (dB SPL). This project uses the loudest bin in the clip itself as the reference, so the maximum is always 0 dB and everything else is negative. Values reflect dynamics within a clip but are not comparable across clips.
 
@@ -54,7 +70,7 @@ Each of the `n_mels` filters is a triangle in the frequency domain: it ramps up 
 
 The dot product of one filter with one frame's power spectrum yields one mel bin: the total power in that perceptual band at that moment. Across all `n_mels` filters and all time frames, this produces the final `(n_mels × time_frames)` matrix.
 
-Because mel filters aggregate many FFT bins into each output bin, some spectral detail is lost — this is why mel reconstruction sounds more degraded than STFT reconstruction.
+Because mel filters aggregate many FFT bins into each output bin, some spectral detail is lost and the reconstruction sounds more degraded than STFT reconstruction.
 
 > The frequency axis scale control is hidden when Mel is selected; the mel axis is always mel-scaled.
 
@@ -70,24 +86,35 @@ Determines how the y-axis is rendered:
 
 ### `n_fft` — FFT window size
 
-Controls the fundamental **time–frequency resolution tradeoff**:
+The number of samples analyzed by a single FFT. Controls the fundamental **time–frequency resolution tradeoff**:
+
+- **Frequency resolution:** `Δf = sample_rate / n_fft` Hz per bin
+- **Window duration:** `n_fft / sample_rate` seconds — the time interval each frame summarizes
 
 | Larger `n_fft` | Smaller `n_fft` |
 |---|---|
-| Finer frequency bins (`Δf = sr / n_fft`) | Coarser frequency bins |
+| Finer frequency bins | Coarser frequency bins |
 | Wider time window, blurs fast transients | Narrower window, captures sharp attacks |
 
-Typical values: 512 (drums, transients) → 2048 (general) → 4096 (low-frequency detail).
+Typical values: 512 (drums, transients) → 2048 (general) → 4096 (low-frequency detail). Powers of two are conventional because the FFT is fastest there.
 
 ### `hop_length` — frame step
 
-The number of samples the window advances between frames. Sets **time resolution**:
+The number of samples the window advances between frames. Sets **time resolution** along the spectrogram's x-axis:
 
 ```
 Δt = hop_length / sample_rate   (e.g. 512 / 44100 ≈ 11.6 ms)
 ```
 
-Overlap between successive frames is `1 − hop_length / n_fft`. A common default is `n_fft / 4`.
+Its relationship to `n_fft` determines how consecutive frames sit against each other:
+
+| Regime | Condition | Effect |
+|---|---|---|
+| **Overlap** | `hop_length < n_fft` | Frames share samples — overlap fraction is `1 − hop_length / n_fft`. Smoother temporal evolution; required for clean inversion. |
+| **Snug fit** | `hop_length = n_fft` | Frames tile edge-to-edge. Tapered windows (Hann) attenuate sample contributions near frame boundaries, causing scalloping on resynthesis. |
+| **Gaps** | `hop_length > n_fft` | Samples between frames are unanalyzed and lost. Transients falling in the gaps disappear; reconstruction is not possible. |
+
+The default `hop_length = n_fft / 4` (75% overlap) satisfies the COLA condition for the Hann window, so iSTFT and Griffin-Lim can reconstruct cleanly. Use ≤ 50% overlap only if you don't need resynthesis.
 
 ### `n_mels` — mel filter banks *(Mel type only)*
 
