@@ -1,11 +1,11 @@
 # Audio File <-> Spectrogram Conversion
 
-A spectrogram is a time × frequency map showing how a signal's content evolves moment to moment. This project is a tool for visualizing audio files as spectrograms, and reconstructing them via Griffin-Lim.
+A spectrogram is a time × frequency heatmap showing how the content of a signal evolves moment to moment. This project is a tool for visualizing audio files as spectrograms, and reconstructing them via Griffin-Lim.
 
 ```bash
 pip install -r requirements.txt
 python -m src.app
-# → http://localhost:7860
+# → http://localhost:7860 or http://0.0.0.0:7860
 ```
 
 Or with Docker:
@@ -22,28 +22,23 @@ Generated spectrograms and reconstructed audio are written to `outputs/` which d
 
 ## Example
 
-A 60-second clip shows the round-trip on music, with sustained harmonic content and percussion.
+Demos of round-trip on 60 second music clip [`assets/717x-chillwave.mp3`]
 
-**Input** — [`assets/717x-chillwave.mp3`](assets/717x-chillwave.mp3)
+**STFT reconstruction** 
 
-**STFT spectrogram** (`n_fft=2048`, `hop_length=512`, log frequency axis):
+<video src="assets/717x-chillwave-reconstructed-stft.mp4" controls></video>
+`n_fft=2048`, `hop_length=512`, 32 Griffin-Lim iterations: loses some of quality but still get the ideas through.
 
-![STFT spectrogram of the chillwave clip](assets/717x-chillwave-spectrogram-stft.png)
+**Mel reconstruction** 
 
-Reconstructions from magnitude alone, via Griffin-Lim:
-
-| Source | File | Notes |
-|---|---|---|
-| STFT (`n_fft=2048`, `hop=512`), 32 iterations | [`assets/717x-chillwave-reconstructed-stft.mp3`](assets/717x-chillwave-reconstructed-stft.mp3) | Near-transparent, phase recovered well. |
-| Mel (`n_fft=512`, `n_mels=32`), 64 iterations | [`assets/717x-chillwave-reconstructed-mel.mp3`](assets/717x-chillwave-reconstructed-mel.mp3) | Clearly degraded, collapsing the spectrum into 32 mel bands gives a muffled result while the music stays recognizable. |
-
-> GitHub doesn't play audio inline in the README; the links above download the clips.
+<video src="assets/717x-chillwave-reconstructed-mel.mp4" controls></video>
+`n_fft=512`, `hop_length=128`, `n_mels=32`, 64 Griffin-Lim iterations: very muffled and degraded but recognizable.
 
 ---
 
 ## Spectrogram types
 
-All types display values on a decibel (dB) scale, which is fundamentally a power ratio: `dB = 10 · log₁₀(P / P_ref)`. Because `P ∝ A²`, for amplitude inputs the equivalent is `20 · log₁₀(A / A_ref)`
+An audio file is a 1D sequence of amplitude samples — one number per sample at a fixed sample rate (e.g., 44,100/sec) — representing instantaneous signal level over time. Both spectrogram types here display audio values on a decibel (dB) scale, which is fundamentally a power ratio: `dB = 10 · log₁₀(P / P_ref)`. Because `P ∝ A²`, for amplitude inputs the equivalent is `20 · log₁₀(A / A_ref)`
 
 dB has no absolute meaning without a reference. Common references include full-scale digital amplitude (dBFS) and sound pressure level (dB SPL). This project uses the loudest bin in the clip itself as the reference, so the maximum is always 0 dB and everything else is negative. Values reflect dynamics within a clip but are not comparable across clips.
 
@@ -75,7 +70,7 @@ Each of the `n_mels` filters is a triangle in the frequency domain: it ramps up 
 
 The dot product of one filter with one frame's power spectrum yields one mel bin: the total power in that perceptual band at that moment. Across all `n_mels` filters and all time frames, this produces the final `(n_mels × time_frames)` matrix.
 
-Because mel filters aggregate many FFT bins into each output bin, some spectral detail is lost — this is why mel reconstruction sounds more degraded than STFT reconstruction.
+Because mel filters aggregate many FFT bins into each output bin, some spectral detail is lost and the reconstruction sounds more degraded than STFT reconstruction.
 
 > The frequency axis scale control is hidden when Mel is selected; the mel axis is always mel-scaled.
 
