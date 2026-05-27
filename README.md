@@ -22,7 +22,7 @@ Generated spectrograms and reconstructed audio are written to `outputs/` which d
 
 ## Example
 
-Demos of round-trip on 60 second music clip:  [717x-chillwave.mp3](https://github.com/user-attachments/files/28295068/717x-chillwave.mp3)
+Demos of round-trip on 60 second music clip:  ([download input](https://github.com/user-attachments/files/28295068/717x-chillwave.mp3))
 
 **STFT reconstruction** 
 
