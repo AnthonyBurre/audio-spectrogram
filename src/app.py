@@ -1,19 +1,19 @@
+from pathlib import Path
+
 import gradio as gr
 
 from .spectrogram import generate_spectrogram, reconstruct_audio
 
 SPEC_TYPES = ["STFT", "Mel"]
+N_FFTS = [512, 1024, 2048, 4096]
 Y_SCALES = ["Linear", "Log"]
 DB_REFS = ["Per-clip", "Full scale (dBFS)"]
 
 INTRO_MD = """
 # Audio Spectrogram Tool
 
-This tool transforms an audio signal into a time x frequency map of decibel values, showing how frequency content evolves moment to moment.
-
-Upload an audio file to visualize it as a spectrogram, then **reconstruct audio** from the magnitude values alone. This round-trip is lossy: phase information is thrown away when computing the spectrogram and must be estimated back using the iterative **Griffin-Lim algorithm**. 
-Increase iterations to recover phase more faithfully, at the cost of compute time. 
-Mel spectrograms carry an additional loss because the mel filterbank compresses many frequency bins into fewer perceptual ones.
+Upload an audio file to view it as a time × frequency map in dB, then **reconstruct audio** from the magnitudes alone.
+The round-trip is lossy: phase is discarded and re-estimated with **Griffin-Lim**, and Mel additionally merges frequency bins.
 """
 
 
@@ -23,15 +23,13 @@ def _toggle_controls(spec_type):
 
 
 def main():
-    """Defines and launches the Gradio web interface."""
-
     with gr.Blocks(title="Audio Spectrogram Generator") as demo:
         gr.Markdown(INTRO_MD)
 
         with gr.Row():
             with gr.Column():
                 audio_input = gr.Audio(
-                    type="filepath", label="Audio File (MP3, WAV, FLAC)"
+                    type="filepath", label="Audio File (WAV, MP3, FLAC, OGG, …)"
                 )
                 spec_type = gr.Radio(
                     SPEC_TYPES,
@@ -48,11 +46,9 @@ def main():
                     info="Linear: uniform Hz spacing, good for seeing overtone series. "
                     "Log: octave-spaced, matches human pitch perception.",
                 )
-                n_fft = gr.Slider(
-                    512,
-                    4096,
+                n_fft = gr.Radio(
+                    N_FFTS,
                     value=2048,
-                    step=512,
                     label="FFT Window Size (n_fft)",
                     info="Larger window = finer frequency resolution, coarser time resolution. "
                     "Frequency bin width = sample_rate ÷ n_fft (e.g. 22 Hz at sr=44100, n_fft=2048).",
@@ -64,10 +60,11 @@ def main():
                     step=128,
                     label="Hop Length (hop_length)",
                     info="Smaller step = finer time resolution. Time resolution = hop_length ÷ sample_rate "
-                    "(e.g. ~12 ms at sr=44100, hop=512). Overlap = 1 - hop_length / n_fft.",
+                    "(e.g. ~12 ms at sr=44100, hop=512). Overlap = 1 - hop_length / n_fft. "
+                    "Must be ≤ n_fft for reconstruction.",
                 )
                 n_mels = gr.Slider(
-                    64,
+                    32,
                     256,
                     value=128,
                     step=32,
@@ -116,9 +113,11 @@ def main():
             outputs=audio_output,
         )
 
-    print("---------------------------------------------------------------------")
-    print("If running in a Docker container, access app at: http://localhost:7860")
-    print("---------------------------------------------------------------------")
+    if Path("/.dockerenv").exists():
+        # Gradio prints the 0.0.0.0 bind address, which isn't browsable from the host.
+        print(
+            "Running in Docker: open http://localhost:7860 (or the host port you mapped with -p)"
+        )
     demo.queue()
     demo.launch(server_name="0.0.0.0", server_port=7860)
 
