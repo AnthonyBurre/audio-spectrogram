@@ -44,7 +44,7 @@ Demos of round-trip on a 60-second music clip ([717x-chillwave.mp3](https://gith
 
 ### STFT
 
-The Short-Time Fourier Transform divides the signal into overlapping time frames, Hann windows each frame to mitigate spectral leakage, and computes each FFT. Without windowing, the hard cut-off at each frame boundary introduces artificial discontinuities that leak energy across frequency bins (spectral leakage). The Hann window smooths those edges so energy from a single sinusoid still spreads across a few bins, but not far across the spectrum.
+The Short-Time Fourier Transform divides the signal into overlapping time frames, applies a Hann window to each, and computes each frame's FFT. Without windowing, the hard cut at each frame boundary leaks a sinusoid's energy across the whole spectrum (spectral leakage); the Hann taper confines it to a few neighboring bins.
 
 The result is a complex matrix `S[k, t]`, where `k` indexes frequency bins (`0` through `n_fft / 2`) and `t` indexes time frames. The spectrogram discards phase and plots amplitudes `|S[k, t]|` in dB against a reference amplitude `A_ref`:
 
@@ -54,9 +54,9 @@ dB = 20 · log₁₀(|S| / A_ref)
 
 ### Mel
 
-A mel spectrogram re-bins the STFT's many linearly-spaced FFT bins onto a coarser, perceptually-motivated frequency axis. The output is much smaller with dense spacing at low frequencies, where human pitch resolution is finest. That makes it a compact feature for ML, and a lossy target for reconstruction.
+A mel spectrogram re-bins the STFT's linearly-spaced FFT bins onto a coarser, perceptually-motivated frequency axis, with dense spacing at low frequencies where human pitch resolution is finest. That makes it a compact feature for ML.
 
-The input is the power spectrogram: acoustic power is proportional to the square of pressure, and powers from incoherent sources add, so summing FFT-bin powers within each mel filter is physically meaningful in a way that summing amplitudes is not.
+The input is the power spectrogram (`|S|²`), because acoustic power is proportional to the square of pressure, and summing bin powers within a filter is physically meaningful in a way that summing amplitudes is not.
 
 Plotted in dB against a reference power `P_ref`:
 
@@ -66,9 +66,9 @@ dB = 10 · log₁₀(P / P_ref)
 
 where `P = |S[k, t]|²`.
 
-Each of the `n_mels` filters is a triangle in the frequency domain: it ramps up from zero, peaks at its center frequency, ramps back down, and overlaps its neighbors so no FFT bin is left unweighted. Unlike the time-domain Hann windows used by the STFT, these filters operate purely in the frequency domain.
+Each of the `n_mels` filters is a triangle in the frequency domain: it ramps up from zero, peaks at its center frequency, ramps back down, and overlaps its neighbors so no FFT bin is left unweighted.
 
-The dot product of one filter with one frame's power spectrum yields one mel bin: the total power in that perceptual band at that moment. Across all `n_mels` filters and all time frames, this produces the final `(n_mels × time_frames)` matrix. Because mel filters aggregate many FFT bins into each output bin, some spectral detail is lost and the reconstruction sounds more degraded than STFT reconstruction.
+The dot product of one filter with one frame's power spectrum yields one mel bin: the total power in that perceptual band at that moment. Across all filters and frames, this produces an `(n_mels × time_frames)` matrix. Detail within each band is lost, so mel reconstruction sounds more degraded than STFT reconstruction.
 
 ---
 
@@ -102,7 +102,7 @@ The number of samples analyzed by a single FFT. Controls the fundamental **time�
 | Finer frequency bins | Coarser frequency bins |
 | Wider time window, blurs fast transients | Narrower window, captures sharp attacks |
 
-Typical values: 512 (drums, transients) → 2048 (general) → 4096 (low-frequency detail). Powers of two are conventional because the FFT is fastest there.
+Options are 512, 1024, 2048, 4096. Use 512 for drums and transients, 2048 for general use, and 4096 for low-frequency detail.
 
 ### `Hop Length (hop_length)` *(display + reconstruction)*
 
@@ -112,11 +112,11 @@ The number of samples the window advances between frames. Sets time resolution a
 Δt = hop_length / sample_rate   (e.g. 512 / 44100 ≈ 11.6 ms)
 ```
 
-The default `hop_length = n_fft / 4` (75% overlap) satisfies the COLA condition for the Hann window, so iSTFT and Griffin-Lim can reconstruct cleanly. ≤ 50% overlap is fine if you only need the visualization.
+The defaults (`n_fft=2048`, `hop_length=512`) give 75% overlap. Hann windows overlap-add cleanly at 50% overlap or more (`hop_length ≤ n_fft / 2`); higher overlap gives Griffin-Lim more redundancy to converge on a consistent phase. Reconstruction requires `hop_length ≤ n_fft`, or frames skip samples entirely.
 
 ### `Mel Bins (n_mels)` *(display + reconstruction)*
 
-The number of triangular filters in the mel filterbank. More filters preserve finer perceptual frequency resolution at the cost of a larger feature matrix. The default of 128 is standard for music; speech models often use 40–80.
+The number of triangular filters in the mel filterbank (32–256). More filters preserve finer perceptual frequency resolution at the cost of a larger feature matrix. The default of 128 is standard for music; speech models often use 40–80.
 
 For reconstruction, `n_mels` must be large enough relative to `n_fft` to keep the mel→STFT inversion stable (minimum = `ceil((n_fft // 2 + 1) / 11)`).
 
